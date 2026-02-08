@@ -270,12 +270,20 @@ class ArizonaAPI:
 
                 create_date_tag = content_soup.find('time')
                 create_date = 0
-                if create_date_tag and create_date_tag.has_attr('data-time'):
-                    data_time_value = create_date_tag['data-time']
-                    if data_time_value.isdigit():
-                        create_date = int(data_time_value)
+                if create_date_tag and create_date_tag.has_attr('title'):
+                    data_time_value = create_date_tag['title']
+                    if data_time_value:
+                        create_date = data_time_value
                     else:
                         create_date = 0
+                
+                create_date_timestamp = 0
+                if create_date_tag and create_date_tag.has_attr('data-timestamp'):
+                    data_time_value = create_date_tag['data-timestamp']
+                    if data_time_value:
+                        create_date_timestamp = int(data_time_value)
+                    else:
+                        create_date_timestamp = 0
 
                 prefix_tag = content_h1_soup.find('span', {'class': 'label'})
                 if prefix_tag:
@@ -299,7 +307,7 @@ class ArizonaAPI:
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, creator, create_date, title, prefix, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")
