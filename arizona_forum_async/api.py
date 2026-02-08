@@ -271,17 +271,17 @@ class ArizonaAPI:
                 create_date_tag = content_soup.find('time')
                 create_date = 0
                 if create_date_tag and create_date_tag.has_attr('title'):
-                    data_time_value = create_date_tag['title']
-                    if data_time_value:
-                        create_date = data_time_value
+                    title_value = create_date_tag['title']
+                    if title_value:
+                        create_date = title_value
                     else:
                         create_date = 0
                 
                 create_date_timestamp = 0
                 if create_date_tag and create_date_tag.has_attr('data-timestamp'):
-                    data_time_value = create_date_tag['data-timestamp']
-                    if data_time_value:
-                        create_date_timestamp = int(data_time_value)
+                    data_timestamp_value = create_date_tag['data-timestamp']
+                    if data_timestamp_value:
+                        create_date_timestamp = data_timestamp_value
                     else:
                         create_date_timestamp = 0
 
