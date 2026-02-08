@@ -6,12 +6,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="arizona-forum-api-async",
     version="1.4.2",
-    author="fakelag28",
-    author_email="fakelag712@gmail.com",
+    author="syyaaxxlocker",
+    author_email="nm0107425@gmail.com",
     description="Асинхронная Python библиотека для взаимодействия с форумом Arizona RP (forum.arizona-rp.com) без необходимости получения API ключа.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/fakelag28/Arizona-Forum-API-Async",
+    url="https://github.com/syyaaxxlocker/Arizona-Forum-API-Async",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
