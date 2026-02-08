@@ -9,15 +9,16 @@ if TYPE_CHECKING:
 
 
 class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: int, title: str, prefix: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
         self.API = API
         self.id = id
         """**ID темы**"""
         self.creator = creator
         """**Объект Member создателя темы**"""
         self.create_date = create_date
-        """**Дата создания темы в UNIX**"""
+        """**Дата создания темы в классическом виде**"""
         self.create_date_timestamp = create_date_timestamp
+        """**Дата создания темы в UNIX**"""
         self.title = title
         """**Заголовок темы**"""
         self.prefix = prefix

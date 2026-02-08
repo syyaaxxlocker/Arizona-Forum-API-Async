@@ -273,7 +273,7 @@ class ArizonaAPI:
                 if create_date_tag and create_date_tag.has_attr('title'):
                     title_value = create_date_tag['title']
                     if title_value:
-                        create_date = title_value
+                        create_date = str(title_value)
                     else:
                         create_date = 0
                 
@@ -281,7 +281,7 @@ class ArizonaAPI:
                 if create_date_tag and create_date_tag.has_attr('data-timestamp'):
                     data_timestamp_value = create_date_tag['data-timestamp']
                     if data_timestamp_value:
-                        create_date_timestamp = int(data_timestamp_value)
+                        create_date_timestamp = float(data_timestamp_value)
                     else:
                         create_date_timestamp = 0
 
