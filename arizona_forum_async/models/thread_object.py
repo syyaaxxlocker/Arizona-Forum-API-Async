@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_author: str,text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
         self.API = API
         self.id = id
         """**ID темы**"""
@@ -23,6 +23,10 @@ class Thread:
         """**Заголовок темы**"""
         self.prefix = prefix
         """**Префикс темы**"""
+        self.post_count = post_count
+        """**Количество ответов в теме**"""
+        self.last_post_author = last_post_author
+        """**Автор последнего сообщения в теме**"""
         self.text_content = text_content
         """**Текст из темы**"""
         self.html_content = html_content

@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Union, Tuple, Iterable
 from collections import defaultdict
 import datetime
 
-from arizona_forum_async.consts import MAIN_URL, ROLE_COLOR
+from arizona_forum_async.consts import MAIN_URL, ROLE_COLOR, MAX_POSTS_PER_PAGE
 from arizona_forum_async.bypass_antibot import bypass_async
 
 from arizona_forum_async.exceptions import IncorrectLoginData, ThisIsYouError
@@ -292,7 +292,7 @@ class ArizonaAPI:
                 else:
                     prefix = ""
                     title = content_h1_soup.text.strip()
-
+                                
                 thread_html_content_tag = content_soup.find('div', {'class': 'bbWrapper'})
                 thread_html_content = str(thread_html_content_tag) if thread_html_content_tag else ""
                 thread_content = thread_html_content_tag.text if thread_html_content_tag else ""
@@ -302,12 +302,41 @@ class ArizonaAPI:
                 except (IndexError, AttributeError, ValueError):
                     pages_count = 1
 
+                if pages_count > 1:
+                    last_page_url = f"{MAIN_URL}/threads/{thread_id}/page-{pages_count}"
+
+                    async with self._session.get(last_page_url, params=params) as response:
+                        response.raise_for_status()
+                        last_data = await response.json()
+
+                    last_html = unescape(last_data['html']['content'])
+                    last_soup = BeautifulSoup(last_html, 'lxml')
+                    last_page_tag = last_soup.find_all('article', {'class': 'message'})
+
+                    if last_page_tag:
+                        # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
+                        post_count = (pages_count - 1) * MAX_POSTS_PER_PAGE + len(last_page_tag) - 1
+                        
+                        if last_page_tag[-1].has_attr('data-author'):
+                            last_post_author = last_page_tag[-1]['data-author']
+                        else:
+                            last_post_author = ""
+                else:
+                    messages_tag = content_soup.find_all('article', {'class': 'message'})
+                    
+                    if messages_tag:
+                        # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
+                        post_count = len(messages_tag) - 1
+                        
+                        if messages_tag[-1].has_attr('data-author'):
+                            last_post_author = messages_tag[-1]['data-author']                    
+                    
                 is_closed = bool(content_soup.find('dl', {'class': 'blockStatus'}))
 
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")

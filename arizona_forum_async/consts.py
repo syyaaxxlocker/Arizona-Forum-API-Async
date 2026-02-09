@@ -1,5 +1,7 @@
 MAIN_URL = "https://forum.arizona-rp.com"
 
+MAX_POSTS_PER_PAGE = 20
+
 REACTIONS = {
     1: 'Мне нравится',
     2: 'Любовь',
