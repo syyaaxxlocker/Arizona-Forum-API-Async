@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_author: str, last_post_date_timestamp: float, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, url: str, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_author: str, last_post_date_timestamp: float, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
         self.API = API
         self.id = id
         """**ID темы**"""
@@ -39,7 +39,7 @@ class Thread:
         """**Закрыта ли тема**"""
         self.thread_post_id = thread_post_id
         """**ID сообщения темы (post_id)**"""
-        self.url = f"{MAIN_URL}/threads/{self.id}/"
+        self.url = url
         """Ссылка на объект"""
     
 

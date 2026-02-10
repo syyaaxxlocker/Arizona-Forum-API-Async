@@ -339,7 +339,7 @@ class ArizonaAPI:
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, last_post_date_timestamp, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, url, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, last_post_date_timestamp, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")
