@@ -3,150 +3,120 @@ from typing import TYPE_CHECKING
 from arizona_forum_async.consts import MAIN_URL
 
 if TYPE_CHECKING:
-    from arizona_forum_async.models.member_object import Member
-    from arizona_forum_async.models.category_object import Category
     from arizona_forum_async import ArizonaAPI
 
 
-class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_author: str,text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+class Category:
+    def __init__(self, API: 'ArizonaAPI', id: int, title: str, pages_count: int) -> None:
         self.API = API
         self.id = id
-        """**ID темы**"""
-        self.creator = creator
-        """**Объект Member создателя темы**"""
-        self.create_date = create_date
-        """**Дата создания темы в классическом виде**"""
-        self.create_date_timestamp = create_date_timestamp
-        """**Дата создания темы в UNIX**"""
+        """**ID категории**"""
         self.title = title
-        """**Заголовок темы**"""
-        self.prefix = prefix
-        """**Префикс темы**"""
-        self.post_count = post_count
-        """**Количество ответов в теме**"""
-        self.last_post_author = last_post_author
-        """**Автор последнего сообщения в теме**"""
-        self.text_content = text_content
-        """**Текст из темы**"""
-        self.html_content = html_content
-        """**Сырой контент темы**"""
-        self.pages_count = pages_content
-        """**Количество страниц с ответами в теме**"""
-        self.is_closed = is_closed
-        """**Закрыта ли тема**"""
-        self.thread_post_id = thread_post_id
-        """**ID сообщения темы (post_id)**"""
-        self.url = f"{MAIN_URL}/threads/{self.id}/"
+        """**Название категории**"""
+        self.pages_count = pages_count
+        """**Количество страниц в категории**"""
+        self.url = f"{MAIN_URL}/forums/{self.id}/"
         """Ссылка на объект"""
-    
 
-    async def answer(self, message_html: str) -> aiohttp.ClientResponse:
-        """Оставить сообщение в теме
+    async def create_thread(self, title: str, message_html: str, discussion_type: str = 'discussion', watch_thread: int = 1) -> aiohttp.ClientResponse:
+        """Создать тему в категории
 
         Attributes:
-            message_html (str): Cодержание ответа. Рекомендуется использование HTML
+            title (str): Название темы
+            message_html (str): Содержание темы. Рекомендуется использование HTML
+            discussion_type (str): - Тип темы | Возможные варианты: 'discussion' - обсуждение (по умолчанию), 'article' - статья, 'poll' - опрос (необяз.)
+            watch_thread (str): - Отслеживать ли тему. По умолчанию True (необяз.)
+        
+        Returns:
+            Объект Response модуля requests
+
+        Todo:
+            Cделать возврат ID новой темы
+        """
+
+        return await self.API.create_thread(self.id, title, message_html, discussion_type, watch_thread)
+    
+
+    async def get_parent_category(self) -> 'Category':
+        """Получить родительский раздел
+
+        Attributes:
+            thread_id (int): ID темы
+        
+        Returns:
+            Объект Catrgory, в котормо создана тема
+        """
+
+        return await self.API.get_parent_category_of_category(self.id)
+
+
+    async def set_read(self) -> aiohttp.ClientResponse:
+        """Отметить категорию как прочитанную
         
         Returns:
             Объект Response модуля requests
         """
 
-        return await self.API.answer_thread(self.id, message_html)
+        return await self.API.set_read_category(self.id)
     
-    async def close(self) -> aiohttp.ClientResponse:
-        return await self.API.close_thread(self.id)
-    
-    async def pin(self) -> aiohttp.ClientResponse:
-        return await self.API.pin_thread(self.id)
 
-
-    async def watch(self, email_subscribe: bool = False, stop: bool = False) -> aiohttp.ClientResponse:
-        """Изменить статус отслеживания темы
+    async def watch(self, notify: str, send_alert: bool = True, send_email: bool = False, stop: bool = False) -> aiohttp.ClientResponse:
+        """Настроить отслеживание категории
 
         Attributes:
-            email_subscribe (bool): Отправлять ли уведомления на почту. По умолчанию False (необяз.)
-            stop (bool): - Принудительно прекратить отслеживание. По умолчанию False (необяз.)
-        
+            notify (str): Объект отслеживания. Возможные варианты: "thread", "message", ""
+            send_alert (bool): - Отправлять ли уведомления на форуме. По умолчанию True (необяз.)
+            send_email (bool): - Отправлять ли уведомления на почту. По умолчанию False (необяз.)
+            stop (bool): - Принудительное завершение отслеживания. По умолчанию False (необяз.)
+
         Returns:
-            Объект Response модуля requests
+            Объект Response модуля requests    
         """
 
-        return await self.API.watch_thread(self.id, email_subscribe, stop)
+        return await self.API.watch_category(self.id, notify, send_alert, send_email, stop)
     
 
-    async def delete(self, reason: str, hard_delete: bool = False) -> aiohttp.ClientResponse:
-        """Удалить тему
-
-        Attributes:
-            reason (str): Причина для удаления
-            hard_delete (bool): Полное удаление сообщения. По умолчанию False (необяз.)
-            
-        Returns:
-            Объект Response модуля requests
-        """
-
-        return await self.API.delete_thread(self.id, reason, hard_delete)
-    
-
-    async def edit(self, message_html: str) -> aiohttp.ClientResponse:
-        """Отредактировать содержимое темы
-
-        Attributes:
-            message_html (str): Новое содержимое ответа. Рекомендуется использование HTML
-        
-        Returns:
-            Объект Response модуля requests
-        """
-
-        return await self.API.edit_thread(self.id, message_html)
-
-    async def edit_info(self, title: str = None, prefix_id: int = None, sticky: bool = True, opened: bool = True) -> aiohttp.ClientResponse:
-        """Изменить заголовок и/или префикс темы
-
-        Attributes:
-            title (str): Новое название
-            prefix_id (int): Новый ID префикса
-            sticky (bool): Закрепить (True - закреп / False - не закреп)
-            opened (bool): Открыть/закрыть тему (True - открыть / False - закрыть)
-        
-        Returns:
-            Объект Response модуля requests
-        """
-
-        return await self.API.edit_thread_info(self.id, title, prefix_id, sticky, opened)
-    
-
-    async def get_posts(self, page: int = 1) -> list:
-        """Получить все ID сообщений из темы на странице
+    async def get_threads(self, page: int = 1) -> dict:
+        """Получить темы из раздела
 
         Attributes:
             page (int): Cтраница для поиска. По умолчанию 1 (необяз.)
-        
-        Returns:
-            Список (list), состоящий из ID всех сообщений на странице
-        """
-
-        return await self.API.get_thread_posts(self.id, page)
-
-
-    async def react(self, reaction_id: int = 1) -> aiohttp.ClientResponse:
-        """Поставить реакцию на тему
-
-        Attributes:
-            reaction_id (int): ID реакции. По умолчанию 1 (необяз.)
             
         Returns:
-            Объект Response модуля requests
+            Словарь (dict), состоящий из списков закрепленных ('pins') и незакрепленных ('unpins') тем
         """
 
-        return await self.API.react_thread(self.id, reaction_id)
+        return await self.API.get_threads(self.id, page)
     
+    async def get_threads_extended(self, page: int = 1) -> dict:
+        """Получить темы из раздела с дополнительной информацией
 
-    async def get_category(self) -> 'Category':
-        """Получить родительский раздел раздела
+        Attributes:
+            page (int): Cтраница для поиска. По умолчанию 1 (необяз.)
+            
+        Returns:
+            Словарь (dict), состоящий из списков закрепленных ('pins') и незакрепленных ('unpins') тем
+        """
+
+        return await self.API.get_thread_category_detail(self.id, page)
+
+    async def get_thread_category_detail(self, page: int = 1) -> dict:
+        """Получить темы из раздела с дополнительной информацией
+
+        Attributes:
+            page (int): Cтраница для поиска. По умолчанию 1 (необяз.)
+            
+        Returns:
+            Словарь (dict), состоящий из списков закрепленных ('pins') и незакрепленных ('unpins') тем
+        """
+
+        return await self.API.get_thread_category_detail(self.id, page)
+
+    async def get_categories(self) -> list:
+        """Получить дочерние категории из раздела
         
         Returns:
-            Объект Catrgory, в котором создан раздел
+            Список (list), состоящий из ID дочерних категорий раздела
         """
 
-        return await self.API.get_thread_category(self.id)
+        return await self.API.get_categories(self.id)

@@ -319,8 +319,10 @@ class ArizonaAPI:
                         
                         if last_page_tag[-1].has_attr('data-author'):
                             last_post_author = last_page_tag[-1]['data-author']
+                            last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
                         else:
                             last_post_author = ""
+                            last_post_date_timestamp = 0
                 else:
                     messages_tag = content_soup.find_all('article', {'class': 'message'})
                     
@@ -329,14 +331,15 @@ class ArizonaAPI:
                         post_count = len(messages_tag) - 1
                         
                         if messages_tag[-1].has_attr('data-author'):
-                            last_post_author = messages_tag[-1]['data-author']                    
+                            last_post_author = messages_tag[-1]['data-author']
+                            last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
                     
                 is_closed = bool(content_soup.find('dl', {'class': 'blockStatus'}))
 
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, last_post_date_timestamp, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")
@@ -344,7 +347,7 @@ class ArizonaAPI:
         except Exception as e:
             print(f"Неожиданная ошибка при получении темы {thread_id}: {e}")
             return None
-
+        
 
     async def get_post(self, post_id: int) -> 'Post | None':
         if not self._session or self._session.closed:
@@ -611,15 +614,15 @@ class ArizonaAPI:
                 html_content = unescape(data['html']['content'])
                 soup = BeautifulSoup(html_content, "lxml")
                 result = {'pins': [], 'unpins': []}
-                for thread in soup.find_all('div', compile('structItem structItem--thread.*')):
-                    link_tags = thread.find_all('div', "structItem-title")[0].find_all("a")
+                for thread in soup.find_all('div', class_=re.compile('structItem structItem--thread.*')):
+                    link_tags = thread.find_all('div', {"class": "structItem-title"})[0].find_all("a")
                     if not link_tags: continue
                     link = link_tags[-1]
                     thread_ids = findall(r'\d+', link.get('href', ''))
                     if not thread_ids: continue
 
                     thread_id = int(thread_ids[0])
-                    if len(thread.find_all('i', {'title': 'Закреплено'})) > 0:
+                    if thread.find_all('i', {'title': 'Закреплено'}):
                         result['pins'].append(thread_id)
                     else:
                         result['unpins'].append(thread_id)

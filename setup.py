@@ -26,4 +26,4 @@ setup(
         "dukpy",
         "lxml",
     ],
-) 
+)
