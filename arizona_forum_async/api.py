@@ -399,7 +399,31 @@ class ArizonaAPI:
 
             html_content_tag = post_article.find('div', {'class': 'bbWrapper'})
             html_content = str(html_content_tag) if html_content_tag else ""
-            text_content = html_content_tag.text if html_content_tag else ""
+            if html_content_tag:
+                for iframe in html_content_tag.find_all("iframe"):
+                    src = iframe.get("src")
+                    if src:
+                        iframe.replace_with(f"\n{src}\n")
+
+                for img in html_content_tag.find_all("img"):
+                    img_url = img.get("data-url") or img.get("src")
+                    if img_url:
+                        img.replace_with(img_url)
+
+                for a in html_content_tag.find_all("a", href=True):
+                    url = a["href"]
+                    text = a.get_text(strip=True)
+
+                    if text and text != url:
+                        a.replace_with(f"{text} ({url})")
+                    else:
+                        a.replace_with(url)
+
+                text_content = html_content_tag.get_text(separator=" ", strip=True)
+                text_content = re.sub(r'\s+', ' ', text_content)
+            else:
+                text_content = ""
+
 
             return Post(self, post_id, creator, thread, create_date, html_content, text_content)
 
@@ -596,7 +620,42 @@ class ArizonaAPI:
             print(f"Ошибка сети при настройке отслеживания категории {category_id}: {e}")
             raise e
 
+    async def get_category_forums(self, category_id: int) -> Dict:
+        if not self._session or self._session.closed:
+            raise Exception("Сессия не активна. Вызовите connect() сначала.")
+        token = await self.token
+        url = f"{MAIN_URL}/categories/{category_id}"
+        params = {'_xfResponseType': 'json', '_xfToken': token}
+        try:
+            async with self._session.get(url, params=params) as response:
+                response.raise_for_status()
+                data = await response.json()
 
+                if data.get('status') == 'error':
+                    return None
+
+                html_content = unescape(data['html']['content'])
+                soup = BeautifulSoup(html_content, "lxml")
+                
+                result = []
+                for forum in soup.find_all('div', class_=re.compile('node node--id.*')):
+                    link_tags = forum.find_all('h3', {"class": "node-title"})[0].find_all("a")
+                    if not link_tags: continue
+                    link = link_tags[-1]
+                    thread_ids = findall(r'\d+', link.get('href', ''))
+                    if not thread_ids: continue
+
+                    thread_id = int(thread_ids[0])
+                    result.append(thread_id)
+                return result                    
+        except aiohttp.ClientError as e:
+            print(f"Ошибка сети при получении тем из категории {category_id}: {e}")
+            return None
+        except Exception as e:
+            print(f"Неожиданная ошибка при получении тем из категории {category_id}: {e}")
+            return None
+
+    
     async def get_threads(self, category_id: int, page: int = 1) -> Optional[Dict[str, List[int]]]:
         if not self._session or self._session.closed:
             raise Exception("Сессия не активна. Вызовите connect() сначала.")
