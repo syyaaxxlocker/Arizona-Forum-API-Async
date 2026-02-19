@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 from re import compile, findall
 import re
 from html import unescape
-from typing import List, Dict, Optional, Union, Tuple, Iterable
 from collections import defaultdict
 import datetime
 
@@ -319,13 +318,13 @@ class ArizonaAPI:
                         
                         if last_page_tag[-1].has_attr('data-author'):
                             last_post_author = last_page_tag[-1]['data-author']
-                            last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
+                            last_post_date_timestamp = float(last_page_tag[-1].find('time')['data-timestamp'])
                         else:
                             last_post_author = ""
                             last_post_date_timestamp = 0
                 else:
                     messages_tag = content_soup.find_all('article', {'class': 'message'})
-                    
+
                     if messages_tag:
                         # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
                         post_count = len(messages_tag) - 1
