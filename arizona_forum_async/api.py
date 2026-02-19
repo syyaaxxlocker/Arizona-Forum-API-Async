@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from re import compile, findall
 import re
 from html import unescape
+from typing import List, Dict, Optional, Union, Tuple, Iterable
 from collections import defaultdict
 import datetime
 
