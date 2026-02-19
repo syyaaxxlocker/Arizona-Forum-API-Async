@@ -302,7 +302,6 @@ class ArizonaAPI:
                 except (IndexError, AttributeError, ValueError):
                     pages_count = 1
 
-                messages_tag = last_soup.find_all('article', {'class': 'message'})
                 
                 if pages_count > 1:
                     last_page_url = f"{MAIN_URL}/threads/{thread_id}/page-{pages_count}"
@@ -314,6 +313,7 @@ class ArizonaAPI:
                     last_html = unescape(last_data['html']['content'])
                     last_soup = BeautifulSoup(last_html, 'lxml')
                     
+                    messages_tag = last_soup.find_all('article', {'class': 'message'})
                     
                     last_post_author = ""
                     last_post_date_timestamp = 0
@@ -327,6 +327,8 @@ class ArizonaAPI:
                             last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
                         
                 else:
+                    messages_tag = content_soup.find_all('article', {'class': 'message'})
+                    
                     if messages_tag:
                         # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
                         post_count = len(messages_tag) - 1
