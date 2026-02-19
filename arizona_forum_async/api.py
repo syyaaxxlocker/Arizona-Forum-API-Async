@@ -311,6 +311,9 @@ class ArizonaAPI:
                     last_html = unescape(last_data['html']['content'])
                     last_soup = BeautifulSoup(last_html, 'lxml')
                     last_page_tag = last_soup.find_all('article', {'class': 'message'})
+                    
+                    last_post_author = ""
+                    last_post_date_timestamp = 0
 
                     if last_page_tag:
                         # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
@@ -319,9 +322,7 @@ class ArizonaAPI:
                         if last_page_tag[-1].has_attr('data-author'):
                             last_post_author = last_page_tag[-1]['data-author']
                             last_post_date_timestamp = float(last_page_tag[-1].find('time')['data-timestamp'])
-                        else:
-                            last_post_author = ""
-                            last_post_date_timestamp = 0
+                        
                 else:
                     messages_tag = content_soup.find_all('article', {'class': 'message'})
 
