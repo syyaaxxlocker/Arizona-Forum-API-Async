@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, url: str, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_author: str, last_post_date_timestamp: float, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, url: str, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_id: int, first_admpost_id: int, last_post_author: str, first_admpost_author: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
         self.API = API
         self.id = id
         """**ID темы**"""
@@ -25,10 +25,14 @@ class Thread:
         """**Префикс темы**"""
         self.post_count = post_count
         """**Количество ответов в теме**"""
+        self.last_post_id = last_post_id
+        """**Айди последнего сообщения в теме**"""
+        self.first_admpost_id = first_admpost_id
+        """**Айди первого ответа в теме**"""
         self.last_post_author = last_post_author
         """**Автор последнего сообщения в теме**"""
-        self.last_post_date_timestamp = last_post_date_timestamp
-        """**Время отправки последнего сообщения в UNIX**"""
+        self.first_admpost_author = first_admpost_author
+        """**Автор первого сообщения в теме**"""
         self.text_content = text_content
         """**Текст из темы**"""
         self.html_content = html_content

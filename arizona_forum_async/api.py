@@ -174,8 +174,9 @@ class ArizonaAPI:
                 roles = []
                 roles_container = soup.find('div', {'class': 'memberHeader-banners'})
                 if roles_container:
-                    for i in roles_container.children:
-                        if i.text != '\n': roles.append(i.text.strip())
+                    banners = roles_container.find_all('em', class_='userBanner')
+                    for banner in banners:
+                        roles.append(banner.get_text(strip=True))
 
                 try:
                     user_title_tag = soup.find('span', {'class': 'userTitle'})
@@ -302,47 +303,70 @@ class ArizonaAPI:
                 except (IndexError, AttributeError, ValueError):
                     pages_count = 1
 
+                messages_tag = content_soup.find_all('article', {'class': 'message'})
                 
-                if pages_count > 1:
-                    last_page_url = f"{MAIN_URL}/threads/{thread_id}/page-{pages_count}"
-
-                    async with self._session.get(last_page_url, params=params) as response:
-                        response.raise_for_status()
-                        last_data = await response.json()
-
-                    last_html = unescape(last_data['html']['content'])
-                    last_soup = BeautifulSoup(last_html, 'lxml')
-                    
-                    messages_tag = last_soup.find_all('article', {'class': 'message'})
-                    
-                    last_post_author = ""
-                    last_post_date_timestamp = 0
-
-                    if messages_tag:
-                        # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
-                        post_count = (pages_count - 1) * MAX_POSTS_PER_PAGE + len(messages_tag) - 1
+                first_admpost_author = None
+                first_admpost_id = 0
+                last_post_author = None
+                last_post_id = 0
+                
+                if messages_tag:
+                    if pages_count > 1:
+                        for post in messages_tag:
+                            roles = []
+                            roles_container = post.find('div', {'class': 'message-userDetails'})
+                            if roles_container:
+                                banners = roles_container.find_all('div', class_='userBanner')
+                                for banner in banners:
+                                    roles.append(banner.get_text(strip=True))
+                            
+                            if 'Тех. Администратор' in roles:
+                                first_admpost_id = int(post['data-content'].split('-')[-1])
+                                first_admpost_author = post['data-author']
+                                break                        
                         
-                        if messages_tag[-1].has_attr('data-author'):
-                            last_post_author = messages_tag[-1]['data-author']
-                            last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
+                        last_page_url = f"{MAIN_URL}/threads/{thread_id}/page-{pages_count}"
+
+                        async with self._session.get(last_page_url, params=params) as response:
+                            response.raise_for_status()
+                            last_data = await response.json()
+
+                        last_html = unescape(last_data['html']['content'])
+                        last_soup = BeautifulSoup(last_html, 'lxml')
                         
-                else:
-                    messages_tag = content_soup.find_all('article', {'class': 'message'})
-                    
-                    if messages_tag:
+                        messages_tag = last_soup.find_all('article', {'class': 'message'})
+
+                        if messages_tag:
+                            # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
+                            post_count = (pages_count - 1) * MAX_POSTS_PER_PAGE + len(messages_tag) - 1
+                            last_post_id = int(messages_tag[-1]['data-content'].split('-')[-1])                        
+                    else:
                         # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
                         post_count = len(messages_tag) - 1
                         
-                        if messages_tag[-1].has_attr('data-author'):
-                            last_post_author = messages_tag[-1]['data-author']
-                            last_post_date_timestamp = float(messages_tag[-1].find('time')['data-timestamp'])
-                    
+                        last_post_id = int(messages_tag[-1]['data-content'].split('-')[-1])
+                        last_post_author = messages_tag[-1]['data-author']
+                        
+                        for post in messages_tag:
+                            roles = []
+                            roles_container = post.find('div', {'class': 'message-userDetails'})
+                            
+                            if roles_container:
+                                banners = roles_container.find_all('div', class_='userBanner')
+                                for banner in banners:
+                                    roles.append(banner.get_text(strip=True))
+                            
+                            if 'Тех. Администратор' in roles:
+                                first_admpost_id = int(post['data-content'].split('-')[-1])
+                                first_admpost_author = post['data-author']
+                                break
+                
                 is_closed = bool(content_soup.find('dl', {'class': 'blockStatus'}))
 
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, url, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_author, last_post_date_timestamp, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, url, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_id, first_admpost_id, last_post_author, first_admpost_author, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")
@@ -393,12 +417,21 @@ class ArizonaAPI:
 
             create_date_tag = post_article.find('time', {'class': 'u-dt'})
             create_date = 0
-            if create_date_tag and create_date_tag.has_attr('data-time'):
-                data_time_value = create_date_tag['data-time']
-                if data_time_value.isdigit():
-                    create_date = int(data_time_value)
+            if create_date_tag and create_date_tag.has_attr('title'):
+                title_value = create_date_tag['title']
+                if title_value:
+                    create_date = str(title_value)
                 else:
                     create_date = 0
+            
+            create_date_timestamp = 0
+            if create_date_tag and create_date_tag.has_attr('data-timestamp'):
+                data_timestamp_value = create_date_tag['data-timestamp']
+                if data_timestamp_value:
+                    create_date_timestamp = float(data_timestamp_value)
+                else:
+                    create_date_timestamp = 0
+
 
             html_content_tag = post_article.find('div', {'class': 'bbWrapper'})
             html_content = str(html_content_tag) if html_content_tag else ""
@@ -428,7 +461,7 @@ class ArizonaAPI:
                 text_content = ""
 
 
-            return Post(self, post_id, creator, thread, create_date, html_content, text_content)
+            return Post(self, post_id, creator, thread, create_date, create_date_timestamp, html_content, text_content)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении поста {post_id}: {e}")
