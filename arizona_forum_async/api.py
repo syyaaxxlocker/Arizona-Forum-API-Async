@@ -340,6 +340,7 @@ class ArizonaAPI:
                             # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
                             post_count = (pages_count - 1) * MAX_POSTS_PER_PAGE + len(messages_tag) - 1
                             last_post_id = int(messages_tag[-1]['data-content'].split('-')[-1])                        
+                            last_post_author = messages_tag[-1]['data-author']
                     else:
                         # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
                         post_count = len(messages_tag) - 1
@@ -782,11 +783,16 @@ class ArizonaAPI:
 
                     start_date_li = minor_div.find('li', 'structItem-startDate') if minor_div else None
                     time_tag = start_date_li.find('time', class_='u-dt') if start_date_li else None
-                    created_date = time_tag.get('data-time') if time_tag else None
-                    thread_data['created_date'] = int(created_date) if created_date and created_date.isdigit() else None
-
+                    created_date = time_tag.get('title') if time_tag else None
+                    created_date_timestamp = time_tag.get('data-timestamp') if time_tag else None
+                    thread_data['created_date'] = created_date if created_date else None
+                    thread_data['created_date_timestamp'] = int(created_date_timestamp) if created_date_timestamp and created_date_timestamp.isdigit() else None
+                    
                     latest_cell = thread.find('div', 'structItem-cell--latest')
-                    last_message_username_tag = latest_cell.find('div', 'structItem-minor').find(class_=compile('username')) if latest_cell else None
+                    try:
+                        last_message_username_tag = latest_cell.find('div', 'structItem-minor').find(class_=compile('username'))
+                    except:
+                        last_message_username_tag = None
                     thread_data['username_last_message'] = last_message_username_tag.text.strip() if last_message_username_tag else None
 
                     thread_data['username_last_message_color'] = '#fff'
@@ -797,8 +803,10 @@ class ArizonaAPI:
                                 break
 
                     latest_date_tag = latest_cell.find('time', class_='structItem-latestDate') if latest_cell else None
-                    last_message_date = latest_date_tag.get('data-time') if latest_date_tag else None
-                    thread_data['last_message_date'] = int(last_message_date) if last_message_date and last_message_date.isdigit() else None
+                    last_message_date = latest_date_tag.get('title') if latest_date_tag else None
+                    last_message_date_timestamp = latest_date_tag.get('data-timestamp') if latest_date_tag else None
+                    thread_data['last_message_date'] = last_message_date if last_message_date else None
+                    thread_data['last_message_date_timestamp'] = int(last_message_date_timestamp) if last_message_date_timestamp and last_message_date_timestamp.isdigit() else None
 
                     thread_data['thread_id'] = thread_id
                     thread_data['is_pinned'] = len(thread.find_all('i', {'title': 'Закреплено'})) > 0
@@ -811,7 +819,8 @@ class ArizonaAPI:
             print(f"Ошибка сети при получении расширенных тем из категории {category_id} (страница {page}): {e}")
             return None
         except Exception as e:
-            print(f"Неожиданная ошибка при получении расширенных тем из категории {category_id} (страница {page}): {e}")
+            import traceback
+            print(f"Неожиданная ошибка при получении расширенных тем из категории {category_id} (страница {page}): {e}\n{traceback.format_exc()}")
             return None
 
     async def get_parent_category_of_category(self, category_id: int) -> Optional[Category]:
@@ -1484,7 +1493,7 @@ class ArizonaAPI:
                         }
 
                     alert_text_container = alert.find('div', {'class': 'contentRow-main'})
-                    alert_text = unescape(alert_text_container.get_text(strip=True)) if alert_text_container else None
+                    alert_text = unescape(alert_text_container.get_text(" ", strip=True)) if alert_text_container else None
 
                     link_tag = alert.find('a', {'class': 'fauxBlockLink-blockLink'})
                     link = link_tag['href'] if link_tag and link_tag.has_attr('href') else None
@@ -1829,9 +1838,9 @@ class ArizonaAPI:
                     if not thread_data.get('is_pinned'):
                          on_review_count += 1
 
-                last_message_date = thread_data.get('last_message_date')
+                last_message_date = thread_data.get('last_message_date_timestamp')
                 closer_username = thread_data.get('username_last_message')
-                created_date = thread_data.get('created_date')
+                created_date = thread_data.get('created_date_timestamp')
 
                 if thread_data.get('is_closed') and last_message_date and closer_username and created_date:
                     if last_message_date >= start_timestamp:
