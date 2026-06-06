@@ -771,6 +771,10 @@ class ArizonaAPI:
                     thread_data['username_author'] = username_author_tag.text.strip() if username_author_tag else None
                     thread_data['thread_title'] = link.text.strip()
 
+                    meta_div = thread.find('div', 'structItem-cell--meta')
+                    post_count = meta_div.find('dl', 'pairs pairs--justified').find('dd') if meta_div else None
+                    thread_data["post_count"] = post_count.text.strip() if post_count else None
+
                     prefix_label = title_div.find('span', class_='label')
                     thread_data['prefix'] = prefix_label.text.strip() if prefix_label else None
 
@@ -801,7 +805,7 @@ class ArizonaAPI:
                             if style in str(last_message_username_tag):
                                 thread_data['username_last_message_color'] = color
                                 break
-
+                    
                     latest_date_tag = latest_cell.find('time', class_='structItem-latestDate') if latest_cell else None
                     last_message_date = latest_date_tag.get('title') if latest_date_tag else None
                     last_message_date_timestamp = latest_date_tag.get('data-timestamp') if latest_date_tag else None
