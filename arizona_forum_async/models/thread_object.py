@@ -9,18 +9,30 @@ if TYPE_CHECKING:
 
 
 class Thread:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', create_date: int, title: str, prefix: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, url: str, creator: 'Member', create_date: str, create_date_timestamp: float, title: str, prefix: str, post_count: int, last_post_id: int, first_admpost_id: int, last_post_author: str, first_admpost_author: str, text_content: str, html_content: str, pages_content: int, thread_post_id: int, is_closed: bool) -> None:
         self.API = API
         self.id = id
         """**ID темы**"""
         self.creator = creator
         """**Объект Member создателя темы**"""
         self.create_date = create_date
+        """**Дата создания темы в классическом виде**"""
+        self.create_date_timestamp = create_date_timestamp
         """**Дата создания темы в UNIX**"""
         self.title = title
         """**Заголовок темы**"""
         self.prefix = prefix
         """**Префикс темы**"""
+        self.post_count = post_count
+        """**Количество ответов в теме**"""
+        self.last_post_id = last_post_id
+        """**Айди последнего сообщения в теме**"""
+        self.first_admpost_id = first_admpost_id
+        """**Айди первого ответа в теме**"""
+        self.last_post_author = last_post_author
+        """**Автор последнего сообщения в теме**"""
+        self.first_admpost_author = first_admpost_author
+        """**Автор первого сообщения в теме**"""
         self.text_content = text_content
         """**Текст из темы**"""
         self.html_content = html_content
@@ -31,7 +43,7 @@ class Thread:
         """**Закрыта ли тема**"""
         self.thread_post_id = thread_post_id
         """**ID сообщения темы (post_id)**"""
-        self.url = f"{MAIN_URL}/threads/{self.id}/"
+        self.url = url
         """Ссылка на объект"""
     
 

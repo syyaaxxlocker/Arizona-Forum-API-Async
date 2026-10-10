@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 
 class Post:
-    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', thread: 'Thread', create_date: int, html_content: str, text_content: str) -> None:
+    def __init__(self, API: 'ArizonaAPI', id: int, creator: 'Member', thread: 'Thread', create_date: str, create_date_timestamp: float, html_content: str, text_content: str) -> None:
         self.API = API
         self.id = id
         """**ID сообщения**"""
@@ -17,6 +17,8 @@ class Post:
         self.thread = thread
         """**Объект Thread темы, в которой оставлено сообщение**"""
         self.create_date = create_date
+        """**Дата отправки сообщения в человеческом формате**"""
+        self.create_date_timestamp = create_date_timestamp
         """**Дата отправки сообщения в UNIX**"""
         self.html_content = html_content
         """**Сырое содержимое сообщения**"""

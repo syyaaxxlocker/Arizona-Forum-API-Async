@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Union, Tuple, Iterable
 from collections import defaultdict
 import datetime
 
-from arizona_forum_async.consts import MAIN_URL, ROLE_COLOR, DEFAULT_USER_AGENT
+from arizona_forum_async.consts import MAIN_URL, ROLE_COLOR, DEFAULT_USER_AGENT, MAX_POSTS_PER_PAGE
 from arizona_forum_async.bypass_antibot import bypass_async, build_session
 from arizona_forum_async._update_check import check_for_updates_async
 
@@ -18,7 +18,7 @@ from arizona_forum_async.models.member_object import Member, CurrentMember
 from arizona_forum_async.models.thread_object import Thread
 from arizona_forum_async.models.category_object import Category
 
-__version__ = "1.7"
+__version__ = "1.8"
 
 class ArizonaForumAPI:
     def __init__(self, user_agent: Optional[str] = None, cookie: dict = None,
@@ -78,6 +78,16 @@ class ArizonaForumAPI:
         """Асинхронный метод для закрытия сессии."""
         if self._session and not self._session.closed:
             await self._session.close()
+
+    @staticmethod
+    def _parse_date_ddmmyy(date_str: str) -> Optional[datetime.datetime]:
+        """Парсит дату DD.MM.YY в datetime (UTC, 00:00:00). Возвращает None при ошибке."""
+        try:
+            return datetime.datetime.strptime(date_str.strip(), '%d.%m.%y').replace(
+                tzinfo=datetime.timezone(datetime.timedelta(hours=3))
+            )
+        except (ValueError, AttributeError):
+            return None
     
     @property
     async def token(self) -> str:
@@ -220,9 +230,9 @@ class ArizonaForumAPI:
                 roles = []
                 roles_container = soup.find('div', {'class': 'memberHeader-banners'})
                 if roles_container:
-                    for i in roles_container.children:
-                        if getattr(i, 'text', None) and i.text != '\n':
-                            roles.append(i.text.strip())
+                    banners = roles_container.find_all('em', class_='userBanner')
+                    for banner in banners:
+                        roles.append(banner.get_text(strip=True))
 
                 try:
                     user_title_tag = soup.find('span', {'class': 'userTitle'})
@@ -358,10 +368,20 @@ class ArizonaForumAPI:
                 create_date_tag = message_header.find('time', class_='u-dt') if message_header else None
 
                 create_date = 0
+                if create_date_tag and create_date_tag.has_attr('title'):
+                    data_time_value = create_date_tag['title']
+                    if data_time_value:
+                        create_date = data_time_value
+                    else:
+                        create_date = 0
+                
+                create_date_timestamp = 0
                 if create_date_tag and create_date_tag.has_attr('data-timestamp'):
-                    data_timestamp_value = create_date_tag['data-timestamp']
-                    if data_timestamp_value.isdigit():
-                        create_date = int(data_timestamp_value)
+                    data_time_value = create_date_tag['data-timestamp']
+                    if data_time_value.isdigit():
+                        create_date_timestamp = int(data_time_value)
+                    else:
+                        create_date_timestamp = 0
 
                 prefix_tag = content_h1_soup.find('span', {'class': 'label'})
                 if prefix_tag:
@@ -380,12 +400,71 @@ class ArizonaForumAPI:
                 except (IndexError, AttributeError, ValueError):
                     pages_count = 1
 
+                messages_tag = content_soup.find_all('article', {'class': 'message'})
+                
+                first_admpost_author = None
+                first_admpost_id = 0
+                last_post_author = None
+                last_post_id = 0
+                
+                if messages_tag:
+                    if pages_count > 1:
+                        for post in messages_tag:
+                            roles = []
+                            roles_container = post.find('div', {'class': 'message-userDetails'})
+                            if roles_container:
+                                banners = roles_container.find_all('div', class_='userBanner')
+                                for banner in banners:
+                                    roles.append(banner.get_text(strip=True))
+                            
+                            if 'Тех. Администратор' in roles:
+                                first_admpost_id = int(post['data-content'].split('-')[-1])
+                                first_admpost_author = post['data-author']
+                                break                        
+                        
+                        last_page_url = f"{MAIN_URL}/threads/{thread_id}/page-{pages_count}"
+
+                        async with self._session.get(last_page_url, params=params) as response:
+                            response.raise_for_status()
+                            last_data = await response.json()
+
+                        last_html = unescape(last_data['html']['content'])
+                        last_soup = BeautifulSoup(last_html, 'lxml')
+                        
+                        messages_tag = last_soup.find_all('article', {'class': 'message'})
+
+                        if messages_tag:
+                            # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме. 
+                            post_count = (pages_count - 1) * MAX_POSTS_PER_PAGE + len(messages_tag) - 1
+                            last_post_id = int(messages_tag[-1]['data-content'].split('-')[-1])                        
+                            last_post_author = messages_tag[-1]['data-author']
+                    else:
+                        # Вычитаю единицу, поскольку не беру в учет первое сообщение в теме.    
+                        post_count = len(messages_tag) - 1
+                        
+                        last_post_id = int(messages_tag[-1]['data-content'].split('-')[-1])
+                        last_post_author = messages_tag[-1]['data-author']
+                        
+                        for post in messages_tag:
+                            roles = []
+                            roles_container = post.find('div', {'class': 'message-userDetails'})
+                            
+                            if roles_container:
+                                banners = roles_container.find_all('div', class_='userBanner')
+                                for banner in banners:
+                                    roles.append(banner.get_text(strip=True))
+                            
+                            if 'Тех. Администратор' in roles:
+                                first_admpost_id = int(post['data-content'].split('-')[-1])
+                                first_admpost_author = post['data-author']
+                                break
+                
                 is_closed = bool(content_soup.find('dl', {'class': 'blockStatus'}))
 
                 post_article_tag = content_soup.find('article', {'id': compile(r'js-post-\d+')})
                 thread_post_id = int(post_article_tag['id'].strip('js-post-')) if post_article_tag and post_article_tag.has_attr('id') else 0
 
-                return Thread(self, thread_id, creator, create_date, title, prefix, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
+                return Thread(self, thread_id, url, creator, create_date, create_date_timestamp, title, prefix, post_count, last_post_id, first_admpost_id, last_post_author, first_admpost_author, thread_content, thread_html_content, pages_count, thread_post_id, is_closed)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении темы {thread_id}: {e}")
@@ -434,18 +513,49 @@ class ArizonaForumAPI:
                 print(f"Не удалось получить информацию о теме для поста {post_id}")
                 return None
 
-            create_date = 0
             create_date_tag = post_article.select_one('header.message-attribution time.u-dt')
+            create_date = 0
             if create_date_tag:
                 data_timestamp_value = create_date_tag.get('data-timestamp')
                 if data_timestamp_value and str(data_timestamp_value).isdigit():
                     create_date = int(data_timestamp_value)
 
+            create_date_timestamp = 0
+            if create_date_tag and create_date_tag.has_attr('data-timestamp'):
+                data_timestamp_value = create_date_tag['data-timestamp']
+                if data_timestamp_value:
+                    create_date_timestamp = float(data_timestamp_value)
+                else:
+                    create_date_timestamp = 0
+
             html_content_tag = post_article.find('div', {'class': 'bbWrapper'})
             html_content = str(html_content_tag) if html_content_tag else ""
-            text_content = html_content_tag.text if html_content_tag else ""
+            if html_content_tag:
+                for iframe in html_content_tag.find_all("iframe"):
+                    src = iframe.get("src")
+                    if src:
+                        iframe.replace_with(f"\n{src}\n")
 
-            return Post(self, post_id, creator, thread, create_date, html_content, text_content)
+                for img in html_content_tag.find_all("img"):
+                    img_url = img.get("data-url") or img.get("src")
+                    if img_url:
+                        img.replace_with(img_url)
+
+                for a in html_content_tag.find_all("a", href=True):
+                    url = a["href"]
+                    text = a.get_text(strip=True)
+
+                    if text and text != url:
+                        a.replace_with(f"{text} ({url})")
+                    else:
+                        a.replace_with(url)
+
+                text_content = html_content_tag.get_text(separator=" ", strip=True)
+                text_content = re.sub(r'\s+', ' ', text_content)
+            else:
+                text_content = ""
+
+            return Post(self, post_id, creator, thread, create_date, create_date_timestamp, html_content, text_content)
 
         except aiohttp.ClientError as e:
             print(f"Ошибка сети при получении поста {post_id}: {e}")
@@ -730,6 +840,10 @@ class ArizonaForumAPI:
                     thread_data['username_author'] = username_author_tag.get_text(strip=True) if username_author_tag else None
                     thread_data['thread_title'] = link.get_text(" ", strip=True)
 
+                    meta_div = thread.find('div', 'structItem-cell--meta')
+                    post_count = meta_div.find('dl', 'pairs pairs--justified').find('dd') if meta_div else None
+                    thread_data["post_count"] = post_count.text.strip() if post_count else None
+
                     prefix_label = title_div.find('span', class_='label')
                     thread_data['prefix'] = prefix_label.get_text(" ", strip=True) if prefix_label else None
 
@@ -742,8 +856,10 @@ class ArizonaForumAPI:
 
                     start_date_li = parts_ul.find('li', class_='structItem-startDate') if parts_ul else None
                     time_tag = start_date_li.find('time', class_='u-dt') if start_date_li else None
-                    created_date = time_tag.get('data-timestamp') if time_tag else None
-                    thread_data['created_date'] = int(created_date) if created_date and str(created_date).isdigit() else None
+                    created_date = time_tag.get('title') if time_tag else None
+                    created_date_timestamp = time_tag.get('data-timestamp') if time_tag else None
+                    thread_data['created_date'] = created_date if created_date else None
+                    thread_data['created_date_timestamp'] = int(created_date_timestamp) if created_date_timestamp and created_date_timestamp.isdigit() else None
 
                     latest_cell = thread.find('div', class_='structItem-cell--latest')
                     latest_minor_div = latest_cell.find('div', class_='structItem-minor') if latest_cell else None
@@ -1441,11 +1557,11 @@ class ArizonaForumAPI:
                     if time_tag:
                         timestamp = {
                             'iso': time_tag.get('datetime'),
-                            'unix': int(time_tag['data-timestamp']) if time_tag and time_tag.has_attr('data-timestamp') and time_tag['data-timestamp'].isdigit() else None
+                            'unix': int(time_tag['data-time']) if time_tag and time_tag.has_attr('data-time') and time_tag['data-time'].isdigit() else None
                         }
 
                     alert_text_container = alert.find('div', {'class': 'contentRow-main'})
-                    alert_text = unescape(alert_text_container.get_text(strip=True)) if alert_text_container else None
+                    alert_text = unescape(alert_text_container.get_text(" ", strip=True)) if alert_text_container else None
 
                     link_tag = alert.find('a', {'class': 'fauxBlockLink-blockLink'})
                     link = link_tag['href'] if link_tag and link_tag.has_attr('href') else None
@@ -1685,14 +1801,15 @@ class ArizonaForumAPI:
             print(f"Неожиданная ошибка при конвертации BBCode для поста {post_id}: {e}")
             return ''
         
-    async def get_category_statistics_threads(self, category_id: int, duration: str = 'week') -> Optional[Dict]:
+    async def get_category_statistics_threads(self, category_id: int, duration: Union[str, int] = 'week') -> Optional[Dict]:
         """
         Собирает статистику по темам в указанной категории за определенный период.
         Останавливает просмотр страниц, как только на странице не будет найдено тем, созданных после начала периода.
 
         Args:
             category_id (int): ID категории форума.
-            duration (str): Период для статистики ('day', 'week', 'month'). По умолчанию 'week'.
+            duration (str | int): Период для статистики: 'day', 'week', 'month', 'year'
+                или количество дней числом (например, 10). По умолчанию 'week'.
 
         Returns:
             Optional[Dict]: Словарь со статистикой или None в случае ошибки.
@@ -1703,13 +1820,13 @@ class ArizonaForumAPI:
                     'period': str,
                     'start_timestamp': int,
                     'end_timestamp': int,
-                    'total_threads_in_category': int, # Общее кол-во тем, обработанных до остановки
+                    'total_threads_in_category': int, # Закрепленные + темы, созданные в периоде
                     'on_review': int, # Открытые и не закрепленные
                     'pinned': int,
-                    'unpinned': int, # Все не закрепленные (включая 'on_review')
+                    'unpinned': int, # Не закрепленные, созданные в периоде
                     'closed_in_period': int, # Закрытые именно в этот период
-                    'currently_open': int, # Текущее кол-во открытых тем (среди обработанных)
-                    'currently_closed': int, # Текущее кол-во закрытых тем (среди обработанных)
+                    'currently_open': int, # Открытые темы, созданные в периоде
+                    'currently_closed': int, # Закрытые темы, созданные в периоде
                     'average_closing_time': str, # Среднее время закрытия в ЧЧ:ММ:СС
                     'average_closing_time_seconds': float,
                     'closer_stats': List[Dict], # Список закрывших с кол-вом и процентом
@@ -1722,7 +1839,21 @@ class ArizonaForumAPI:
             return None
 
         now = datetime.datetime.now(datetime.timezone.utc)
-        if duration == 'day':
+
+        # Число дней: 10 или "10"
+        days_count = None
+        if isinstance(duration, int) and not isinstance(duration, bool):
+            days_count = duration
+        elif isinstance(duration, str) and duration.strip().isdigit():
+            days_count = int(duration.strip())
+
+        if days_count is not None:
+            if days_count <= 0:
+                print(f"Ошибка: Количество дней должно быть больше 0, получено {days_count}.")
+                return None
+            delta = datetime.timedelta(days=days_count)
+            period_str = f"{days_count} дн."
+        elif duration == 'day':
             delta = datetime.timedelta(days=1)
             period_str = "день"
         elif duration == 'week':
@@ -1735,7 +1866,7 @@ class ArizonaForumAPI:
             delta = datetime.timedelta(days=365)
             period_str = "год"
         else:
-            print(f"Ошибка: Неверное значение duration '{duration}'. Используйте 'day', 'week', 'month' или 'year'.")
+            print(f"Ошибка: Неверное значение duration '{duration}'. Используйте 'day', 'week', 'month', 'year' или число дней.")
             return None
 
         start_timestamp = int((now - delta).timestamp())
@@ -1783,26 +1914,24 @@ class ArizonaForumAPI:
                 print(f"Страница {page} категории {category_id} пуста или не содержит тем.")
                 continue
 
-            all_threads_processed += len(page_threads)
-
             for thread_data in page_threads:
-                if thread_data.get('is_pinned'):
-                    pinned_count += 1
-                else:
-                    unpinned_count += 1
-
-                if thread_data.get('is_closed'):
-                    currently_closed_count += 1
-                else:
-                    currently_open_count += 1
-                    if not thread_data.get('is_pinned'):
-                         on_review_count += 1
-
+                is_pinned = thread_data.get('is_pinned')
+                is_closed = thread_data.get('is_closed')
                 last_message_date = thread_data.get('last_message_date')
                 closer_username = thread_data.get('username_last_message')
-                created_date = thread_data.get('created_date')
+                created_date = thread_data.get('created_date_timestamp')
 
-                if thread_data.get('is_closed') and last_message_date and closer_username and created_date:
+                if created_date and created_date >= start_timestamp:
+                    page_contains_recent_threads = True
+
+                # Закреплённые темы — не жалобы, но входят в общее количество
+                if is_pinned:
+                    pinned_count += 1
+                    all_threads_processed += 1
+                    continue
+
+                # Закрытые в периоде считаем независимо от даты создания темы
+                if is_closed and last_message_date and closer_username and created_date:
                     if last_message_date >= start_timestamp:
                         closed_in_period_count += 1
                         closing_time_seconds = last_message_date - created_date
@@ -1810,8 +1939,18 @@ class ArizonaForumAPI:
                             total_closing_duration_seconds += closing_time_seconds
                             closers_stats[closer_username] += 1
 
-                if created_date and created_date >= start_timestamp:
-                    page_contains_recent_threads = True
+                # Остальные счётчики — только по темам, созданным в периоде
+                if not created_date or created_date < start_timestamp:
+                    continue
+
+                all_threads_processed += 1
+                unpinned_count += 1
+
+                if is_closed:
+                    currently_closed_count += 1
+                else:
+                    currently_open_count += 1
+                    on_review_count += 1
 
             if not page_contains_recent_threads:
                 print(f"Остановка на странице {page}: не найдено тем, созданных после {datetime.datetime.fromtimestamp(start_timestamp, tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}.")
@@ -1863,7 +2002,7 @@ class ArizonaForumAPI:
         }
 
         return result
-    
+                
     async def get_category_statistics_posts(self, category_id: int, duration: str = 'week') -> Optional[Dict]:
         """
         Собирает статистику по постам в темах указанной категории за определенный период.
